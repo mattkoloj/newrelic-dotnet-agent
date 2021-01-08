@@ -6,6 +6,7 @@ using NewRelic.Agent.IntegrationTests.Shared.ReflectionHelpers;
 using System;
 using System.Diagnostics;
 using System.Linq;
+using System.Reflection;
 
 namespace MultiFunctionApplicationHelpers
 {
@@ -91,9 +92,28 @@ namespace MultiFunctionApplicationHelpers
             var methodParams = args.Skip(2).ToArray();
             var countMethodParams = methodParams.Count();
 
-            var matchedMethods = ReflectionUtil.FindMethodUsingAttributes<LibraryAttribute, LibraryMethodAttribute>(libraryName, methodName)
-                .Where(x => x.GetParameters().Count() == countMethodParams)
-                .ToArray();
+            MethodInfo[] matchedMethods = new MethodInfo[0];
+
+            try
+            {
+                matchedMethods = ReflectionUtil.FindMethodUsingAttributes<LibraryAttribute, LibraryMethodAttribute>(libraryName, methodName)
+                    .Where(x => x.GetParameters().Count() == countMethodParams)
+                    .ToArray();
+            }
+            catch (ReflectionTypeLoadException ex)
+            {
+                Logger.Error($"Caught ReflectionTypeLoadException attempting to execute libraryName={libraryName}, methodName={methodName}, exception message = {ex.Message}");
+                var loaderExceptions = ex.LoaderExceptions;
+                foreach (var loaderException in loaderExceptions)
+                {
+                    Logger.Error($"Loader exception: {loaderException.Message}");
+                }
+                if (!keepAliveOnError)
+                {
+                    Environment.Exit(-5);
+                }
+                return;
+            }
 
             if (matchedMethods.Length == 0)
             {
